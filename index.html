@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Stock Ticker</title>
+    <style>
+        :root {
+            --color-positive: #00ff88;
+            --color-negative: #ff4444;
+            --color-neutral: #888888;
+            --color-background: #1a1a2e;
+            --color-card-bg: #16213e;
+            --color-text-primary: #ffffff;
+            --color-text-secondary: #a0a0a0;
+            --color-accent: #0f3460;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--color-background);
+            color: var(--color-text-primary);
+            overflow-x: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-card-bg) 100%);
+            padding: 24px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .live-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(0, 255, 136, 0.1);
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+
+        .pulse-dot {
+            width: 12px;
+            height: 12px;
+            background: var(--color-positive);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+            box-shadow: 0 0 8px var(--color-positive);
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.6;
+                transform: scale(1.1);
+            }
+        }
+
+        .live-text {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--color-positive);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .last-update {
+            font-size: 12px;
+            color: var(--color-text-secondary);
+        }
+
+        .ticker-container {
+            max-width: 1400px;
+            margin: 32px auto;
+            padding: 0 24px;
+        }
+
+        .stock-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 24px;
+        }
+
+        .stock-card {
+            background: var(--color-card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .stock-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .stock-card.flash-positive {
+            animation: flashPositive 0.5s ease;
+        }
+
+        .stock-card.flash-negative {
+            animation: flashNegative 0.5s ease;
+        }
+
+        @keyframes flashPositive {
+            0%, 100% { background: var(--color-card-bg); }
+            50% { background: rgba(0, 255, 136, 0.15); }
+        }
+
+        @keyframes flashNegative {
+            0%, 100% { background: var(--color-card-bg); }
+            50% { background: rgba(255, 68, 68, 0.15); }
+        }
+
+        .stock-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .stock-symbol {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .stock-name {
+            font-size: 13px;
+            color: var(--color-text-secondary);
+            margin-top: 4px;
+        }
+
+        .stock-price {
+            font-size: 32px;
+            font-weight: 700;
+            margin: 12px 0;
+            letter-spacing: -1px;
+        }
+
+        .stock-changes {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .change-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 15px;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .change-item.positive {
+            color: var(--color-positive);
+            background: rgba(0, 255, 136, 0.1);
+        }
+
+        .change-item.negative {
+            color: var(--color-negative);
+            background: rgba(255, 68, 68, 0.1);
+        }
+
+        .arrow {
+            font-size: 14px;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: var(--color-card-bg);
+            border-radius: 20px;
+            padding: 32px;
+            max-width: 700px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(30px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 24px;
+        }
+
+        .modal-title {
+            flex: 1;
+        }
+
+        .modal-symbol {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .modal-name {
+            font-size: 16px;
+            color: var(--color-text-secondary);
+        }
+
+        .close-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: var(--color-text-primary);
+            font-size: 24px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+
+        .close-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: rotate(90deg);
+        }
+
+        .modal-price-section {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+        }
+
+        .modal-current-price {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            letter-spacing: -1px;
+        }
+
+        .modal-changes {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .modal-change-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-item {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 16px;
+            border-radius: 12px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--color-text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .chart-container {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+        }
+
+        .chart-title {
+            font-size: 14px;
+            color: var(--color-text-secondary);
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 200px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 22px;
+            }
+
+            .stock-grid {
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 16px;
+            }
+
+            .modal-content {
+                padding: 24px;
+            }
+
+            .modal-current-price {
+                font-size: 36px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stock-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <h1>Real-Time Stock Ticker</h1>
+            <div>
+                <div class="live-indicator">
+                    <div class="pulse-dot"></div>
+                    <span class="live-text">Live</span>
+                </div>
+                <div class="last-update" id="lastUpdate">Last updated: --:--:--</div>
+            </div>
+        </div>
+    </header>
+
+    <div class="ticker-container">
+        <div class="stock-grid" id="stockGrid"></div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <div class="modal-symbol" id="modalSymbol"></div>
+                    <div class="modal-name" id="modalName"></div>
+                </div>
+                <button class="close-btn" id="closeModal">&times;</button>
+            </div>
+
+            <div class="modal-price-section">
+                <div class="modal-current-price" id="modalPrice"></div>
+                <div class="modal-changes" id="modalChanges"></div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-label">Open</div>
+                    <div class="stat-value" id="modalOpen"></div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">High</div>
+                    <div class="stat-value" id="modalHigh"></div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Low</div>
+                    <div class="stat-value" id="modalLow"></div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Volume</div>
+                    <div class="stat-value" id="modalVolume"></div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">Price History (Last 30 Updates)</div>
+                <canvas id="priceChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Stock data structure
+        const stocksData = [
+            { symbol: 'AAPL', name: 'Apple Inc.', initialPrice: 262.82 },
+            { symbol: 'MSFT', name: 'Microsoft Corp.', initialPrice: 523.61 },
+            { symbol: 'GOOGL', name: 'Alphabet Inc.', initialPrice: 259.92 },
+            { symbol: 'AMZN', name: 'Amazon.com Inc.', initialPrice: 224.21 },
+            { symbol: 'TSLA', name: 'Tesla Inc.', initialPrice: 433.72 },
+            { symbol: 'NVDA', name: 'NVIDIA Corp.', initialPrice: 186.26 },
+            { symbol: 'META', name: 'Meta Platforms', initialPrice: 738.36 },
+            { symbol: 'JPM', name: 'JPMorgan Chase', initialPrice: 300.44 }
+        ];
+
+        // Initialize stocks with tracking data
+        const stocks = {};
+        stocksData.forEach(stock => {
+            stocks[stock.symbol] = {
+                ...stock,
+                currentPrice: stock.initialPrice,
+                openPrice: stock.initialPrice,
+                high: stock.initialPrice,
+                low: stock.initialPrice,
+                priceHistory: [stock.initialPrice],
+                volume: Math.floor(Math.random() * 50000000) + 10000000,
+                lastPrice: stock.initialPrice
+            };
+        });
+
+        // Format currency
+        function formatCurrency(value) {
+            return '$' + value.toFixed(2);
+        }
+
+        // Format volume
+        function formatVolume(value) {
+            if (value >= 1000000) {
+                return (value / 1000000).toFixed(2) + 'M';
+            }
+            return value.toLocaleString();
+        }
+
+        // Calculate change
+        function calculateChange(current, open) {
+            const change = current - open;
+            const percentChange = (change / open) * 100;
+            return {
+                dollar: change,
+                percent: percentChange,
+                isPositive: change >= 0
+            };
+        }
+
+        // Update timestamp
+        function updateTimestamp() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { hour12: false });
+            document.getElementById('lastUpdate').textContent = `Last updated: ${timeString}`;
+        }
+
+        // Render stock cards
+        function renderStocks() {
+            const grid = document.getElementById('stockGrid');
+            grid.innerHTML = '';
+
+            Object.values(stocks).forEach(stock => {
+                const change = calculateChange(stock.currentPrice, stock.openPrice);
+                const arrow = change.isPositive ? '▲' : '▼';
+                const changeClass = change.isPositive ? 'positive' : 'negative';
+
+                const card = document.createElement('div');
+                card.className = 'stock-card';
+                card.setAttribute('data-symbol', stock.symbol);
+                card.innerHTML = `
+                    <div class="stock-header">
+                        <div>
+                            <div class="stock-symbol">${stock.symbol}</div>
+                            <div class="stock-name">${stock.name}</div>
+                        </div>
+                    </div>
+                    <div class="stock-price">${formatCurrency(stock.currentPrice)}</div>
+                    <div class="stock-changes">
+                        <div class="change-item ${changeClass}">
+                            <span class="arrow">${arrow}</span>
+                            <span>${formatCurrency(Math.abs(change.dollar))}</span>
+                        </div>
+                        <div class="change-item ${changeClass}">
+                            <span class="arrow">${arrow}</span>
+                            <span>${Math.abs(change.percent).toFixed(2)}%</span>
+                        </div>
+                    </div>
+                `;
+
+                card.addEventListener('click', () => openModal(stock.symbol));
+                grid.appendChild(card);
+            });
+        }
+
+        // Update stock prices
+        function updatePrices() {
+            Object.keys(stocks).forEach(symbol => {
+                const stock = stocks[symbol];
+                const fluctuation = (Math.random() * 0.04 - 0.02); // -2% to +2%
+                const priceChange = stock.currentPrice * fluctuation;
+                
+                stock.lastPrice = stock.currentPrice;
+                stock.currentPrice = Math.max(1, stock.currentPrice + priceChange); // Ensure price doesn't go negative
+                
+                // Update high and low
+                if (stock.currentPrice > stock.high) stock.high = stock.currentPrice;
+                if (stock.currentPrice < stock.low) stock.low = stock.currentPrice;
+                
+                // Update price history (keep last 30 points)
+                stock.priceHistory.push(stock.currentPrice);
+                if (stock.priceHistory.length > 30) {
+                    stock.priceHistory.shift();
+                }
+
+                // Update volume
+                stock.volume += Math.floor(Math.random() * 1000000) - 500000;
+                if (stock.volume < 1000000) stock.volume = 1000000;
+            });
+
+            renderStocks();
+            updateTimestamp();
+            animatePriceChanges();
+        }
+
+        // Animate price changes
+        function animatePriceChanges() {
+            Object.keys(stocks).forEach(symbol => {
+                const stock = stocks[symbol];
+                const card = document.querySelector(`[data-symbol="${symbol}"]`);
+                if (!card) return;
+
+                // Remove previous animation classes
+                card.classList.remove('flash-positive', 'flash-negative');
+
+                // Add animation based on price movement
+                if (stock.currentPrice > stock.lastPrice) {
+                    card.classList.add('flash-positive');
+                } else if (stock.currentPrice < stock.lastPrice) {
+                    card.classList.add('flash-negative');
+                }
+            });
+        }
+
+        // Open modal
+        function openModal(symbol) {
+            const stock = stocks[symbol];
+            const change = calculateChange(stock.currentPrice, stock.openPrice);
+            const arrow = change.isPositive ? '▲' : '▼';
+            const changeClass = change.isPositive ? 'positive' : 'negative';
+
+            document.getElementById('modalSymbol').textContent = stock.symbol;
+            document.getElementById('modalName').textContent = stock.name;
+            document.getElementById('modalPrice').textContent = formatCurrency(stock.currentPrice);
+            document.getElementById('modalPrice').className = `modal-current-price ${changeClass}`;
+            
+            document.getElementById('modalChanges').innerHTML = `
+                <div class="modal-change-item ${changeClass}">
+                    <span class="arrow">${arrow}</span>
+                    <span>${formatCurrency(Math.abs(change.dollar))}</span>
+                </div>
+                <div class="modal-change-item ${changeClass}">
+                    <span class="arrow">${arrow}</span>
+                    <span>${Math.abs(change.percent).toFixed(2)}%</span>
+                </div>
+            `;
+
+            document.getElementById('modalOpen').textContent = formatCurrency(stock.openPrice);
+            document.getElementById('modalHigh').textContent = formatCurrency(stock.high);
+            document.getElementById('modalLow').textContent = formatCurrency(stock.low);
+            document.getElementById('modalVolume').textContent = formatVolume(stock.volume);
+
+            drawChart(stock);
+            document.getElementById('modal').classList.add('active');
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('modal').classList.remove('active');
+        }
+
+        // Draw price chart
+        function drawChart(stock) {
+            const canvas = document.getElementById('priceChart');
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            
+            // Set canvas size accounting for device pixel ratio
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = 200 * dpr;
+            ctx.scale(dpr, dpr);
+
+            const width = rect.width;
+            const height = 200;
+            const padding = 20;
+            const chartWidth = width - padding * 2;
+            const chartHeight = height - padding * 2;
+
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+
+            const prices = stock.priceHistory;
+            if (prices.length < 2) return;
+
+            // Calculate min and max for scaling
+            const minPrice = Math.min(...prices);
+            const maxPrice = Math.max(...prices);
+            const priceRange = maxPrice - minPrice || 1;
+
+            // Draw grid lines
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = padding + (chartHeight / 4) * i;
+                ctx.beginPath();
+                ctx.moveTo(padding, y);
+                ctx.lineTo(width - padding, y);
+                ctx.stroke();
+            }
+
+            // Draw price line
+            const change = calculateChange(stock.currentPrice, stock.openPrice);
+            ctx.strokeStyle = change.isPositive ? '#00ff88' : '#ff4444';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+
+            prices.forEach((price, index) => {
+                const x = padding + (chartWidth / (prices.length - 1)) * index;
+                const y = padding + chartHeight - ((price - minPrice) / priceRange) * chartHeight;
+                
+                if (index === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+            ctx.stroke();
+
+            // Draw area under the line
+            ctx.lineTo(width - padding, padding + chartHeight);
+            ctx.lineTo(padding, padding + chartHeight);
+            ctx.closePath();
+            ctx.fillStyle = change.isPositive ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 68, 68, 0.1)';
+            ctx.fill();
+
+            // Draw price labels
+            ctx.fillStyle = '#a0a0a0';
+            ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(formatCurrency(maxPrice), width - padding + 15, padding + 5);
+            ctx.fillText(formatCurrency(minPrice), width - padding + 15, padding + chartHeight);
+        }
+
+        // Event listeners
+        document.getElementById('closeModal').addEventListener('click', closeModal);
+        document.getElementById('modal').addEventListener('click', (e) => {
+            if (e.target.id === 'modal') closeModal();
+        });
+
+        // Initialize
+        renderStocks();
+        updateTimestamp();
+
+        // Start price updates with randomized intervals
+        function scheduleNextUpdate() {
+            const interval = Math.random() * 1500 + 2000; // 2000-3500ms
+            setTimeout(() => {
+                updatePrices();
+                scheduleNextUpdate();
+            }, interval);
+        }
+
+        scheduleNextUpdate();
+    </script>
+</body>
+</html>
